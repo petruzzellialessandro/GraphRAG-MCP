@@ -125,7 +125,14 @@ MCP_PORT=8011
 python run_mcp_server.py
 ```
 
-The server starts at `http://127.0.0.1:8011` and exposes an SSE endpoint at `/sse`.
+The server starts at `http://127.0.0.1:8011`.
+
+Available SSE endpoints:
+
+- `/sse` -> all searches enabled (`basic_search`, `local_search`, `global_search`)
+- `/basic/sse` -> only `basic_search`
+- `/local/sse` -> only `local_search`
+- `/global/sse` -> only `global_search`
 
 ---
 
@@ -133,18 +140,32 @@ The server starts at `http://127.0.0.1:8011` and exposes an SSE endpoint at `/ss
 
 ### VS Code / GitHub Copilot
 
-Add to `.vscode/mcp.json` in your workspace:
+Add to `.vscode/mcp.json` in your workspace. Choose the URL based on the search mode you want to enable:
 
 ```json
 {
   "servers": {
-    "graphrag": {
+    "graphrag-basic": {
+      "type": "sse",
+      "url": "http://127.0.0.1:8011/basic/sse"
+    },
+    "graphrag-local": {
+      "type": "sse",
+      "url": "http://127.0.0.1:8011/local/sse"
+    },
+    "graphrag-global": {
+      "type": "sse",
+      "url": "http://127.0.0.1:8011/global/sse"
+    },
+    "graphrag-all": {
       "type": "sse",
       "url": "http://127.0.0.1:8011/sse"
     }
   }
 }
 ```
+
+Keep only the server entries you actually want to expose to the MCP client.
 
 ---
 
