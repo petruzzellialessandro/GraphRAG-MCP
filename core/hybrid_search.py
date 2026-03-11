@@ -1,13 +1,22 @@
 from __future__ import annotations
 from collections import defaultdict
-from core.vector_store import vector_search, get_client
+from pathlib import Path
+from graphrag.vector_stores.lancedb import LanceDBVectorStore
+from graphrag.config.models.vector_store_schema_config import VectorStoreSchemaConfig
 from core.bm25_index import BM25Index
 from core.graph_store import graph_expand
+from core.config import settings
 
 RRF_K = 60  # standard Reciprocal Rank Fusion constant
 
 def _rrf_score(rank: int) -> float:
     return 1.0 / (RRF_K + rank)
+
+def _get_lancedb_store() -> LanceDBVectorStore:
+    store = LanceDBVectorStore(vector_store_schema_config=VectorStoreSchemaConfig())
+    store.index_name = "default-text_unit-text"
+    store.connect(db_uri=str(Path(settings.graphrag_output_dir) / "lancedb"))
+    return store
 
 def hybrid_search(
     query: str,
@@ -20,12 +29,21 @@ def hybrid_search(
     scores: dict[str, float] = defaultdict(float)
     payloads: dict[str, dict] = {}
 
-    # Layer 1: vector similarity via Qdrant
-    qdrant = get_client()
-    for rank, hit in enumerate(vector_search(qdrant, query_vector, top_k=top_k)):
-        cid = hit.payload["id"]
+    # Layer 1: vector similarity via LanceDB
+    store = _get_lancedb_store()
+    for rank, result in enumerate(store.similarity_search_by_vector(query_vector, k=top_k)):
+        doc = result.document
+        cid = doc.id
         scores[cid] += _rrf_score(rank)
-        payloads[cid] = hit.payload
+        attrs = doc.attributes or {}
+        doc_ids = attrs.get("document_ids", ["unknown"])
+        payloads[cid] = {
+            "id": cid,
+            "text": doc.text or "",
+            "doc_title": doc_ids[0] if isinstance(doc_ids, list) else "unknown",
+            "entity_ids": attrs.get("entity_ids", []),
+            "source": "vector",
+        }
 
     # Layer 2: BM25 full-text — good for exact terms/codes
     for rank, (chunk, _) in enumerate(bm25_index.search(query, top_k=top_k)):

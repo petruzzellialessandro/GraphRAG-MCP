@@ -1,54 +1,41 @@
 """
-One-shot script: reads GraphRAG Parquet output and populates Qdrant.
-Run once after `graphrag index --root .`
+Verification script: checks that all GraphRAG data stores are accessible.
+LanceDB vector stores are populated automatically by `graphrag index`.
+Run this after indexing to confirm everything is in order.
 """
 import asyncio
-import openai
+from pathlib import Path
 from core.config import settings
 from core.data_loader import load_all
-from core.vector_store import get_client as get_qdrant, ensure_collection, upsert_chunks
+from graphrag.vector_stores.lancedb import LanceDBVectorStore
+from graphrag.config.models.vector_store_schema_config import VectorStoreSchemaConfig
 
-BATCH_SIZE = 100
 
-async def embed_texts(texts: list[str]) -> list[list[float]]:
-    client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
-    embeddings = []
-    for i in range(0, len(texts), BATCH_SIZE):
-        batch = texts[i:i + BATCH_SIZE]
-        response = await client.embeddings.create(
-            input=batch,
-            model="text-embedding-3-small",
-        )
-        embeddings.extend([r.embedding for r in response.data])
-        print(f"  Embedded {min(i + BATCH_SIZE, len(texts))}/{len(texts)}")
-    return embeddings
+def _check_lancedb_store(index_name: str) -> int:
+    store = LanceDBVectorStore(vector_store_schema_config=VectorStoreSchemaConfig())
+    store.index_name = index_name
+    store.connect(db_uri=str(Path(settings.graphrag_output_dir) / "lancedb"))
+    count = store.document_collection.count_rows()
+    print(f"  {index_name}: {count} rows")
+    return count
 
-async def populate_qdrant(data):
-    print("Populating Qdrant...")
-    qdrant = get_qdrant()
-    ensure_collection(qdrant, vector_size=1536)
-
-    # Build chunks from text_units — attach entity_ids for graph seed extraction
-    chunks = []
-    for _, row in data.text_units.iterrows():
-        chunks.append({
-            "id": str(row["id"]),
-            "text": str(row.get("text", "")),
-            "doc_title": str(row.get("document_ids", ["unknown"])[0])
-                         if isinstance(row.get("document_ids"), list) else "unknown",
-            "entity_ids": [str(eid) for eid in row.get("entity_ids", [])]
-                          if isinstance(row.get("entity_ids"), list) else [],
-        })
-
-    texts = [c["text"] for c in chunks]
-    embeddings = await embed_texts(texts)
-    upsert_chunks(qdrant, chunks, embeddings)
-    print(f"  Upserted {len(chunks)} chunks into Qdrant.")
 
 async def main():
+    print("Checking GraphRAG data stores...")
+
     data = load_all()
-    await populate_qdrant(data)
-    print("Done. Qdrant store is ready.")
+    print(f"  Entities: {len(data.entities)}")
+    print(f"  Relationships: {len(data.relationships)}")
+    print(f"  Text units: {len(data.text_units)}")
+    print(f"  Communities: {len(data.communities)}")
+    print(f"  Community reports: {len(data.community_reports)}")
+
+    print("\nChecking LanceDB vector stores...")
+    for table in ("default-entity-description", "default-text_unit-text"):
+        _check_lancedb_store(table)
+
+    print("\nAll stores OK.")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

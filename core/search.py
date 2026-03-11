@@ -42,9 +42,9 @@ async def run_local_search(
     community_level: int = 2,
     response_type: str = "Multiple Paragraphs",
 ) -> dict:
-    entities = read_indexer_entities(data.entities)
+    entities = read_indexer_entities(data.entities, data.communities, community_level)
     relationships = read_indexer_relationships(data.relationships)
-    reports = read_indexer_reports(data.community_reports, data.entities, community_level)
+    reports = read_indexer_reports(data.community_reports, data.communities, community_level)
     text_units = read_indexer_text_units(data.text_units)
     description_store = _entity_description_store(data)
 
@@ -61,7 +61,7 @@ async def run_local_search(
         context_builder=context_builder,
         response_type=response_type,
     )
-    result = await engine.asearch(query)
+    result = await engine.search(query)
     ctx = result.context_data if isinstance(result.context_data, dict) else {}
     resolved = resolve_sources(ctx.get("sources"), data)
     return {
@@ -77,9 +77,9 @@ async def run_local_search(
 
 
 async def run_global_search(query: str, data: GraphData, llm, community_level: int = 2) -> dict:
-    reports = read_indexer_reports(data.community_reports, data.entities, community_level)
-    communities = read_indexer_communities(data.communities)
-    entities = read_indexer_entities(data.entities)
+    reports = read_indexer_reports(data.community_reports, data.communities, community_level)
+    communities = read_indexer_communities(data.communities, data.community_reports)
+    entities = read_indexer_entities(data.entities, data.communities, community_level)
 
     context_builder = GlobalCommunityContext(
         community_reports=reports,
@@ -87,7 +87,7 @@ async def run_global_search(query: str, data: GraphData, llm, community_level: i
         entities=entities,
     )
     engine = GlobalSearch(model=llm, context_builder=context_builder)
-    result = await engine.asearch(query)
+    result = await engine.search(query)
     ctx = result.context_data if isinstance(result.context_data, dict) else {}
     return {
         "answer": result.response,

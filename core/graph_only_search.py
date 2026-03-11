@@ -1,7 +1,6 @@
 """
 Lightweight search using only BM25 + Pandas graph expansion.
-No Qdrant, no embeddings, no Docker required.
-Useful for testing and low-resource environments.
+No vector embeddings required. Useful for testing and low-resource environments.
 """
 from collections import defaultdict
 from core.bm25_index import BM25Index
