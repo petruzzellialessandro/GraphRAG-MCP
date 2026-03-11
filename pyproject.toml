@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "graphrag-mcp"
 version = "0.1.0"
-description = "GraphRAG MCP Server with hybrid search — no Neo4j required"
+description = "GraphRAG MCP Server with basic, local, and global search"
 authors = ["you <you@example.com>"]
 
 [tool.poetry.dependencies]
@@ -12,8 +12,6 @@ starlette = "^0.37"
 uvicorn = "^0.29"
 pandas = "^2.0"
 pyarrow = "^15.0"
-qdrant-client = "^1.9"
-rank-bm25 = "^0.2"
 pydantic-settings = "^2.0"
 python-dotenv = "^1.0"
 openai = "^1.0"
