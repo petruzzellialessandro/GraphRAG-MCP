@@ -202,8 +202,9 @@ Reload VS Code to apply changes.
     This server is designed for GraphRAG v2/v3 artifacts. Ensure your `graphrag` package version matches the one used to create the index.
 
 ---
+
 > [!CAUTION]
-> ## Known Bugs & Fixes
+## Known Bugs & Fixes
 
 ### 1. LiteLLM Errors
 
