@@ -203,6 +203,45 @@ Reload VS Code to apply changes.
 
 ---
 
+## Known Bugs & Fixes
+
+### 1. LiteLLM Errors
+
+If you encounter issues with `litellm` (which GraphRAG uses internally), you may need to install the latest version from source:
+
+```bash
+pip install graphrag==2.7.1
+# Clone the repository
+git clone https://github.com/BerriAI/litellm.git
+cd litellm
+
+# Install development dependencies and the package in editable mode
+make install-dev
+pip install -e .
+
+# Run validation checks (optional)
+make format
+make lint
+make test-unit
+```
+
+This installs your local `litellm` clone into the current Python environment (venv), overriding the PyPI version.
+
+### 2. OpenAI "max_tokens" Error
+
+If you see the error:
+`Invalid type for 'max_tokens': expected an unsupported value, but got null instead.`
+
+This is a known issue (microsoft/graphrag#1976). To fix it, you need to patch the `openai` package in your virtual environment.
+
+1.  Locate `openai/resources/chat/completions/completions.py` inside your site-packages:
+    -   **Windows:** `venv\Lib\site-packages\openai\resources\chat\completions\completions.py`
+    -   **Linux/Mac:** `.venv/lib/python3.x/site-packages/openai/resources/chat/completions/completions.py`
+
+2.  Open the file and remove **all** occurrences of `"max_tokens": max_tokens,`.
+
+---
+
 ## Security Notes
 
 -   **CORS**: `mcp_server/server.py` sets `allow_origins=["*"]`, suitable for local development only.
