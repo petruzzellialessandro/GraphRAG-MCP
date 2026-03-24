@@ -9,10 +9,13 @@ from core.config import settings
 def _chat_config():
     from graphrag.config.models.language_model_config import LanguageModelConfig
     from graphrag.config.enums import ModelType
+    print("Using OpenAI API key:", settings.openai_api_key[:4] + "..." + settings.openai_api_key[-4:])
     return LanguageModelConfig(
-        type=ModelType.OpenAIChat,
-        model="gpt-4o",
+        model="gpt-5-nano",
         api_key=settings.openai_api_key,
+        type="openai_chat",
+        max_completion_tokens=4000,
+        temperature=1.0,
     )
 
 

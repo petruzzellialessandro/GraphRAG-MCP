@@ -5,6 +5,7 @@ from starlette.routing import Mount
 from mcp_server.tools.local_search import local_search_tool
 from mcp_server.tools.basic_search import basic_search_tool
 from mcp_server.tools.global_search import global_search_tool
+from mcp_server.tools.drift_search import drift_search_tool
 from mcp_server.tools.entity_query import list_entities_tool, get_entity_tool
 
 def _with_cors(mcp_app):
@@ -22,8 +23,26 @@ def _build_mcp_app(
     enable_basic: bool,
     enable_local: bool,
     enable_global: bool,
+    enable_drift: bool = True,
 ):
     mcp = FastMCP(name=name)
+
+    if enable_drift:
+        @mcp.tool()
+        async def drift_search(
+            query: str,
+            community_level: int = 2,
+            response_type: str = "Multiple Paragraphs",
+        ) -> dict:
+            """
+            Entity + Community hybrid search combining local and global insights.
+            Best for: 'What are the main consequences of event X across the graph?'
+            """
+            return await drift_search_tool(
+                query,
+                community_level=community_level,
+                response_type=response_type,
+            )
 
     if enable_local:
         @mcp.tool()
@@ -87,24 +106,35 @@ all_search_app = _build_mcp_app(
     enable_basic=True,
     enable_local=True,
     enable_global=True,
+    enable_drift=True,
 )
 basic_only_app = _build_mcp_app(
     name="graphrag-mcp-server-basic",
     enable_basic=True,
     enable_local=False,
     enable_global=False,
+    enable_drift=False,
 )
 local_only_app = _build_mcp_app(
     name="graphrag-mcp-server-local",
     enable_basic=False,
     enable_local=True,
     enable_global=False,
+    enable_drift=False,
 )
 global_only_app = _build_mcp_app(
     name="graphrag-mcp-server-global",
     enable_basic=False,
     enable_local=False,
     enable_global=True,
+    enable_drift=False,
+)
+drift_only_app = _build_mcp_app(
+    name="graphrag-mcp-server-drift",
+    enable_basic=False,
+    enable_local=False,
+    enable_global=False,
+    enable_drift=True,
 )
 
 # Default root keeps backward compatibility (/sse => all searches enabled).
@@ -113,6 +143,7 @@ app = Starlette(
         Mount("/basic", app=basic_only_app),
         Mount("/local", app=local_only_app),
         Mount("/global", app=global_only_app),
+        Mount("/drift", app=drift_only_app),
         Mount("/", app=all_search_app),
     ]
 )
