@@ -203,8 +203,7 @@ Reload VS Code to apply changes.
 
 ---
 
-> [!CAUTION]
-## Known Bugs & Fixes
+## :exclamation: Known Bugs & Fixes :exclamation:
 
 ### 1. LiteLLM Errors
 
