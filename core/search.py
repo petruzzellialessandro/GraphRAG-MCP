@@ -73,7 +73,7 @@ async def run_local_search(
         context_builder=context_builder,
         response_type=response_type,
     )
-    result = await engine.search(query)
+    result = await engine.search(query, max_context_tokens=128000)
     ctx = result.context_data if isinstance(result.context_data, dict) else {}
     resolved = resolve_sources(ctx.get("sources"), data)
     return {
@@ -99,7 +99,7 @@ async def run_global_search(query: str, data: GraphData, llm, community_level: i
         entities=entities,
     )
     engine = GlobalSearch(model=llm, context_builder=context_builder)
-    result = await engine.search(query)
+    result = await engine.search(query, max_context_tokens=128000)
     ctx = result.context_data if isinstance(result.context_data, dict) else {}
     return {
         "answer": result.response,
@@ -162,7 +162,7 @@ async def run_drift_search(
         context_builder=context_builder,
     )
 
-    result = await engine.search(query)
+    result = await engine.search(query, max_context_tokens=128000)
     # DRIFT result might have different context structure, usually it has a 'nodes' or similar
     # but the search response itself is what matters most for now.
     return {

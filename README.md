@@ -16,7 +16,7 @@ It combines GraphRAG-native retrieval strategies:
 MCP Client (Claude / Copilot / etc.)
         │  SSE over HTTP
         ▼
-run_mcp_server.py ──► uvicorn ──► mcp_server/server.py  (FastMCP 0.2)
+run_mcp_server.py ──► uvicorn ──► mcp_server/server.py  (FastMCP 2.x)
                                         │
                     ┌───────────┬───────┼────────┬────────────┐
                     ▼           ▼       ▼        ▼            ▼
@@ -42,6 +42,7 @@ run_mcp_server.py ──► uvicorn ──► mcp_server/server.py  (FastMCP 0.2
 ```
 .
 ├── run_mcp_server.py          # Entry point — starts uvicorn
+├── patch_openai.py            # Patches openai max_tokens bug automatically
 ├── mcp_server/
 │   ├── server.py              # FastMCP app, tool registrations, CORS middleware
 │   └── tools/
@@ -58,8 +59,8 @@ run_mcp_server.py ──► uvicorn ──► mcp_server/server.py  (FastMCP 0.2
 │   ├── source_resolver.py     # Maps GraphRAG context sources → document titles
 │   └── version.py             # GraphRAG version detection utility
 ├── env.example                # Environment variable template
-├── requirements.txt
-└── pyproject.toml
+├── pyproject.toml
+└── requirements.txt
 ```
 
 ---
@@ -83,50 +84,51 @@ Follow these steps to get the entire pipeline running, from zero to a working MC
 
 ### 1. Install Dependencies
 
-Ensure you have Python 3.10 or higher.
+Ensure you have **Python ≥ 3.10**.
 
 ```bash
-# With pip
-pip install -r requirements.txt
+# Recommended: install and patch in one command (uses poethepoet)
+uv run poe setup
 
-# Or with uv (recommended for speed)
-uv pip install -r requirements.txt
+# Manual alternative
+uv sync
+uv run poe patch-openai
 ```
+
+> `poe setup` runs `uv sync` and automatically applies the OpenAI patch (see [Known Bugs](#exclamation-known-bugs--fixes-exclamation) below).
 
 ### 2. Generate GraphRAG Index
 
 The MCP server needs a pre-built GraphRAG index (`output/*.parquet`) to function.
 
-1.  **Initialize GraphRAG:**
-    ```bash
-    graphrag init --root .
-    ```
-    This creates a `.graphrag/` directory with `settings.yaml` and `.env`.
+1. **Initialize GraphRAG:**
+   ```bash
+   graphrag init --root .
+   ```
+   This creates a `.graphrag/` directory with `settings.yaml` and `.env`.
 
-2.  **Configure GraphRAG:**
-    Edit `.graphrag/.env` (or your main `.env` if you merge them) to add your API Key:
-    ```env
-    GRAPHRAG_API_KEY=sk-...
-    ```
+2. **Configure GraphRAG:**
+   Edit `.graphrag/.env` (or your main `.env`) to add your API key:
+   ```env
+   GRAPHRAG_API_KEY=sk-...
+   ```
 
-3.  **Run Indexing:**
-    Place your raw text documents in an `input/` folder (create it if missing), then run:
-    ```bash
-    mkdir -p input
-    # Copy your .txt files into input/
-    graphrag index --root .
-    ```
-    This process can take minutes to hours. When finished, artifacts will be in `output/`.
+3. **Run Indexing:**
+   Place your raw text documents in an `input/` folder, then run:
+   ```bash
+   mkdir -p input
+   # Copy your .txt files into input/
+   graphrag index --root .
+   ```
+   This process can take minutes to hours. When finished, artifacts will be in `output/`.
 
 ### 3. Configure the MCP Server
-
-Create a `.env` file for the MCP server:
 
 ```bash
 cp env.example .env
 ```
 
-Edit the `.env` file and fill in the required values:
+Edit `.env` and fill in the required values:
 
 ```env
 # [Required] OpenAI API Key
@@ -142,24 +144,25 @@ MCP_PORT=8011
 
 ### 4. Start the MCP Server
 
-Run the server using the provided script:
-
 ```bash
 python run_mcp_server.py
 ```
 
 Available SSE endpoints:
-- `http://127.0.0.1:8011/sse` (All tools)
-- `http://127.0.0.1:8011/basic/sse`
-- `http://127.0.0.1:8011/local/sse`
-- `http://127.0.0.1:8011/global/sse`
-- `http://127.0.0.1:8011/drift/sse`
+
+| Endpoint | Tools exposed |
+|---|---|
+| `http://127.0.0.1:8011/sse` | All tools |
+| `http://127.0.0.1:8011/basic/sse` | `basic_search` |
+| `http://127.0.0.1:8011/local/sse` | `local_search` |
+| `http://127.0.0.1:8011/global/sse` | `global_search` |
+| `http://127.0.0.1:8011/drift/sse` | `drift_search` |
 
 ### 5. Connect an MCP Client
 
-#### VS Code (Github Copilot)
+#### VS Code (GitHub Copilot)
 
-Add the server configuration to your workspace's `.vscode/mcp.json` file:
+Add the server to your workspace's `.vscode/mcp.json`:
 
 ```json
 {
@@ -195,54 +198,52 @@ Reload VS Code to apply changes.
 
 ## Troubleshooting
 
--   **"No such file or directory: .../create_final_*.parquet"**:
-    Ensure `GRAPHRAG_OUTPUT_DIR` in `.env` points to the correct folder containing the parquet files.
-
--   **GraphRAG version mismatch**:
-    This server is designed for GraphRAG v2/v3 artifacts. Ensure your `graphrag` package version matches the one used to create the index.
+- **"No such file or directory: .../create_final_*.parquet"** — Ensure `GRAPHRAG_OUTPUT_DIR` in `.env` points to the folder containing the parquet files.
+- **GraphRAG version mismatch** — This server targets GraphRAG `2.7.1` artifacts. Ensure your `graphrag` package version matches the one used to create the index.
 
 ---
 
 ## :exclamation: Known Bugs & Fixes :exclamation:
 
-### 1. LiteLLM Errors
+### 1. OpenAI `max_tokens` Error (automated fix)
 
-If you encounter issues with `litellm` (which GraphRAG uses internally), you may need to install the latest version from source:
-
-```bash
-pip install graphrag==2.7.1
-# Clone the repository
-git clone https://github.com/BerriAI/litellm.git
-cd litellm
-
-# Install development dependencies and the package in editable mode
-make install-dev
-pip install -e .
-
-# Run validation checks (optional)
-make format
-make lint
-make test-unit
+If you see:
+```
+Invalid type for 'max_tokens': expected an unsupported value, but got null instead.
 ```
 
-This installs your local `litellm` clone into the current Python environment (venv), overriding the PyPI version.
+This is a known issue ([microsoft/graphrag#1976](https://github.com/microsoft/graphrag/issues/1976)). The repo ships a `patch_openai.py` script that removes all `"max_tokens": max_tokens,` occurrences from your installed `openai` package automatically.
 
-### 2. OpenAI "max_tokens" Error
+Run it manually:
+```bash
+python patch_openai.py
+```
 
-If you see the error:
-`Invalid type for 'max_tokens': expected an unsupported value, but got null instead.`
+Or just use `poe setup` which applies the patch after `uv sync`.
 
-This is a known issue (microsoft/graphrag#1976). To fix it, you need to patch the `openai` package in your virtual environment.
+**Manual fix** (if the script fails):
 
-1.  Locate `openai/resources/chat/completions/completions.py` inside your site-packages:
-    -   **Windows:** `venv\Lib\site-packages\openai\resources\chat\completions\completions.py`
-    -   **Linux/Mac:** `.venv/lib/python3.x/site-packages/openai/resources/chat/completions/completions.py`
+1. Locate `openai/resources/chat/completions/completions.py` in your site-packages:
+   - **Windows:** `venv\Lib\site-packages\openai\resources\chat\completions\completions.py`
+   - **Linux/Mac:** `.venv/lib/python3.x/site-packages/openai/resources/chat/completions/completions.py`
+2. Remove all occurrences of `"max_tokens": max_tokens,`.
 
-2.  Open the file and remove **all** occurrences of `"max_tokens": max_tokens,`.
+### 2. LiteLLM Errors (solved)
+
+If you encounter issues with `litellm` (used internally by GraphRAG):
+
+```bash
+git clone https://github.com/BerriAI/litellm.git
+cd litellm
+make install-dev
+pip install -e .
+```
+
+This installs a local `litellm` clone into your environment, overriding the PyPI version.
 
 ---
 
 ## Security Notes
 
--   **CORS**: `mcp_server/server.py` sets `allow_origins=["*"]`, suitable for local development only.
--   **Secrets**: Ensure `.env` is listed in your `.gitignore` and never committed.
+- **CORS**: `mcp_server/server.py` sets `allow_origins=["*"]`, suitable for local development only. Restrict origins in production.
+- **Secrets**: Ensure `.env` is in your `.gitignore` and never committed.
